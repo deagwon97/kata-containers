@@ -123,12 +123,23 @@ pub async fn get_pod_cdi_devices(
             .collect()
     };
 
-    // Collect all device specifications from all containers
+    // Collect all device specifications from all containers. Legacy device
+    // plugin allocations need resourceName=deviceID formatting. DRA CDI
+    // devices are already fully-qualified CDI names.
     let mut devices = Vec::new();
     for container in &pod_resources.containers {
         for device in &container.devices {
             let cdi_devices = format_cdi_device_ids(&device.resource_name, &device.device_ids);
             devices.extend(cdi_devices);
+        }
+        for dynamic_resource in &container.dynamic_resources {
+            for claim_resource in &dynamic_resource.claim_resources {
+                for cdi_device in &claim_resource.cdi_devices {
+                    if !cdi_device.name.is_empty() {
+                        devices.push(cdi_device.name.clone());
+                    }
+                }
+            }
         }
     }
 

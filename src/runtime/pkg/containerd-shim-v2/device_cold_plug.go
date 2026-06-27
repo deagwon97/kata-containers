@@ -122,18 +122,32 @@ func getDeviceSpec(ctx context.Context, socket string, ann map[string]string) ([
 		return nil, fmt.Errorf("cold plug: PodResources is nil")
 	}
 
-	// Process results
+	return podResourcesCDIDevices(podRes), nil
+}
+
+func podResourcesCDIDevices(podRes *podresourcesv1.PodResources) []string {
 	var devices []string
-	for _, container := range podRes.Containers {
-		for _, d := range container.Devices {
-			shimLog.WithField("container", container.Name).Debugf("Pod Resources Device: %s = %v\n",
-				d.ResourceName, d.DeviceIds)
-			cdiDevs := formatCDIDevIDs(d.ResourceName, d.DeviceIds)
-			devices = append(devices, cdiDevs...)
+	for _, container := range podRes.GetContainers() {
+		for _, d := range container.GetDevices() {
+			shimLog.WithField("container", container.GetName()).Debugf("Pod Resources Device: %s = %v\n",
+				d.GetResourceName(), d.GetDeviceIds())
+			devices = append(devices, formatCDIDevIDs(d.GetResourceName(), d.GetDeviceIds())...)
+		}
+		for _, d := range container.GetDynamicResources() {
+			for _, cr := range d.GetClaimResources() {
+				for _, cdiDev := range cr.GetCDIDevices() {
+					if cdiDev.GetName() == "" {
+						continue
+					}
+					shimLog.WithField("container", container.GetName()).Debugf("Pod Resources DRA CDI Device: %s\n",
+						cdiDev.GetName())
+					devices = append(devices, cdiDev.GetName())
+				}
+			}
 		}
 	}
 
-	return devices, nil
+	return devices
 }
 
 // formatCDIDevIDs formats the way CDI package expects
