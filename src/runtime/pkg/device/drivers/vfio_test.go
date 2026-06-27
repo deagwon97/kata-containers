@@ -48,3 +48,50 @@ func TestGetVFIODetails(t *testing.T) {
 	}
 
 }
+
+func TestVFIOGroupNameFromDevPath(t *testing.T) {
+	testCases := []struct {
+		name        string
+		path        string
+		expected    string
+		expectError bool
+	}{
+		{
+			name:     "regular iommu group",
+			path:     "/dev/vfio/17",
+			expected: "17",
+		},
+		{
+			name:     "unsafe no-iommu group",
+			path:     "/dev/vfio/noiommu-17",
+			expected: "17",
+		},
+		{
+			name:        "vfio control device",
+			path:        "/dev/vfio/vfio",
+			expectError: true,
+		},
+		{
+			name:        "iommufd cdev",
+			path:        "/dev/vfio/devices/vfio17",
+			expectError: true,
+		},
+		{
+			name:        "non-numeric no-iommu group",
+			path:        "/dev/vfio/noiommu-gpu",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			group, err := VFIOGroupNameFromDevPath(tc.path)
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, group)
+		})
+	}
+}

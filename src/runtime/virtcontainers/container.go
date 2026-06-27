@@ -1117,8 +1117,12 @@ func vfioDeviceBDFs(devPath string) []string {
 		}
 		return []string{bdf}
 	}
-	// Legacy VFIO group (/dev/vfio/<GROUP>): may contain multiple devices
-	vfioGroup := filepath.Base(devPath)
+	// Legacy VFIO group (/dev/vfio/<GROUP> or /dev/vfio/noiommu-<GROUP>):
+	// may contain multiple devices.
+	vfioGroup, err := deviceUtils.VFIOGroupNameFromDevPath(devPath)
+	if err != nil {
+		return nil
+	}
 	iommuDevicesPath := filepath.Join(config.SysIOMMUGroupPath, vfioGroup, "devices")
 	deviceFiles, err := os.ReadDir(iommuDevicesPath)
 	if err != nil {
@@ -1433,10 +1437,14 @@ func (c *Container) annotateContainerWithVFIOMetadata(devices interface{}) error
 // <num> is the device number and <index> is the provided device index.
 // The annotation is stored in c.config.CustomSpec.Annotations.
 func (c *Container) createCDIAnnotation(devPath string, index int, cdiKind string) {
-	// We have here either /dev/vfio/<num> or /dev/vfio/devices/vfio<num>
+	// We have here /dev/vfio/<num>, /dev/vfio/noiommu-<num>,
+	// or /dev/vfio/devices/vfio<num>.
 	baseName := filepath.Base(devPath)
-	vfioNum := baseName
-	// For IOMMUFD format /dev/vfio/devices/vfio<num>, strip "vfio" prefix
+	vfioNum, err := deviceUtils.VFIOGroupNameFromDevPath(devPath)
+	if err != nil {
+		vfioNum = baseName
+	}
+	// For IOMMUFD format /dev/vfio/devices/vfio<num>, strip "vfio" prefix.
 	if strings.HasPrefix(baseName, "vfio") {
 		vfioNum = strings.TrimPrefix(baseName, "vfio")
 	}
@@ -1470,8 +1478,12 @@ func (c *Container) siblingAnnotation(devPath string, siblings []DeviceRelation)
 		class := deviceUtils.GetPCIDeviceProperty(bdf, deviceUtils.PCISysFsDevicesClass)
 		_, isKnownCDIDevice = cdiKindForDevice(vendorID, class)
 	} else {
-		// Legacy VFIO group (/dev/vfio/<GROUP>): may contain multiple devices
-		vfioGroup := filepath.Base(devPath)
+		// Legacy VFIO group (/dev/vfio/<GROUP> or /dev/vfio/noiommu-<GROUP>):
+		// may contain multiple devices.
+		vfioGroup, err := deviceUtils.VFIOGroupNameFromDevPath(devPath)
+		if err != nil {
+			return err
+		}
 		iommuDevicesPath := filepath.Join(config.SysIOMMUGroupPath, vfioGroup, "devices")
 		deviceFiles, err := os.ReadDir(iommuDevicesPath)
 		if err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/kata-containers/kata-containers/src/runtime/pkg/device/drivers"
 	"github.com/kata-containers/kata-containers/src/runtime/pkg/device/manager"
 	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/types"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,6 +39,18 @@ func TestGetAnnotations(t *testing.T) {
 	for k, v := range containerAnnotations {
 		assert.Equal(t, annotations[k], v)
 	}
+}
+
+func TestCreateCDIAnnotationNoIOMMUPath(t *testing.T) {
+	container := Container{
+		config: &ContainerConfig{
+			CustomSpec: &specs.Spec{},
+		},
+	}
+
+	container.createCDIAnnotation("/dev/vfio/noiommu-0", 2, "nvidia.com/gpu")
+
+	assert.Equal(t, "nvidia.com/gpu=2", container.config.CustomSpec.Annotations["cdi.k8s.io/vfio0"])
 }
 
 func TestContainerSystemMountsInfo(t *testing.T) {

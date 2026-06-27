@@ -264,13 +264,31 @@ func GetDeviceFromVFIODev(device config.DeviceInfo) ([]*config.VFIODev, error) {
 	return vfioDevs, nil
 }
 
+// VFIOGroupNameFromDevPath returns the numeric IOMMU group name for a legacy
+// VFIO group device path. It supports both regular IOMMU paths like
+// /dev/vfio/<group> and unsafe no-IOMMU paths like /dev/vfio/noiommu-<group>.
+func VFIOGroupNameFromDevPath(devPath string) (string, error) {
+	baseName := filepath.Base(devPath)
+	groupName := strings.TrimPrefix(baseName, "noiommu-")
+	if groupName == "" || groupName == "." || groupName == "vfio" {
+		return "", fmt.Errorf("invalid VFIO group device path %q", devPath)
+	}
+	if _, err := strconv.Atoi(groupName); err != nil {
+		return "", fmt.Errorf("invalid VFIO group device path %q: %w", devPath, err)
+	}
+	return groupName, nil
+}
+
 // GetAllVFIODevicesFromIOMMUGroup returns all the VFIO devices in the IOMMU group
 // We can reuse this function at various levels, sandbox, container.
 func GetAllVFIODevicesFromIOMMUGroup(device config.DeviceInfo) ([]*config.VFIODev, error) {
 
 	vfioDevs := []*config.VFIODev{}
 
-	vfioGroup := filepath.Base(device.HostPath)
+	vfioGroup, err := VFIOGroupNameFromDevPath(device.HostPath)
+	if err != nil {
+		return nil, err
+	}
 	iommuDevicesPath := filepath.Join(config.SysIOMMUGroupPath, vfioGroup, "devices")
 
 	deviceFiles, err := os.ReadDir(iommuDevicesPath)
